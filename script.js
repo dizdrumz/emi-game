@@ -898,11 +898,28 @@ function spawnFromTouch(touchX, touchY) {
     }
 }
 
+// --- Gesture Detection State ---
 let touchThrottle = 0;
+let tapCount = 0;
+let tapTimer = null;
+const TAP_WINDOW = 500; // ms to complete triple-tap
+const SWIPE_THRESHOLD = 80; // min px to count as a swipe
+let touchStartX = 0;
+let touchStartY = 0;
+let touchStartTime = 0;
+let touchMoved = false;
 
 window.addEventListener('touchstart', (e) => {
     e.preventDefault();
     if (!audioCtx) initAudio();
+
+    // Record start position for swipe detection
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+    touchStartTime = Date.now();
+    touchMoved = false;
+
+    // Spawn particles on touch
     for (let i = 0; i < e.touches.length; i++) {
         spawnFromTouch(e.touches[i].clientX, e.touches[i].clientY);
     }
@@ -910,6 +927,8 @@ window.addEventListener('touchstart', (e) => {
 
 window.addEventListener('touchmove', (e) => {
     e.preventDefault();
+    touchMoved = true;
+
     // Throttle touchmove to avoid spawning too many particles
     const now = Date.now();
     if (now - touchThrottle < 80) return;
@@ -921,6 +940,58 @@ window.addEventListener('touchmove', (e) => {
 
 window.addEventListener('touchend', (e) => {
     e.preventDefault();
+
+    const touchEndX = e.changedTouches[0].clientX;
+    const touchEndY = e.changedTouches[0].clientY;
+    const deltaX = touchEndX - touchStartX;
+    const deltaY = touchEndY - touchStartY;
+    const absDX = Math.abs(deltaX);
+    const absDY = Math.abs(deltaY);
+    const elapsed = Date.now() - touchStartTime;
+
+    // --- Swipe Detection (must be fast and long enough) ---
+    if (elapsed < 600 && (absDX > SWIPE_THRESHOLD || absDY > SWIPE_THRESHOLD)) {
+
+        // Swipe DOWN → MAMA
+        if (absDY > absDX && deltaY > SWIPE_THRESHOLD) {
+            triggerMAMACelebration();
+            tapCount = 0;
+            if (tapTimer) { clearTimeout(tapTimer); tapTimer = null; }
+            return;
+        }
+
+        // Swipe SIDEWAYS (left or right) → ROOMBA
+        if (absDX > absDY && absDX > SWIPE_THRESHOLD) {
+            triggerRoomba();
+            tapCount = 0;
+            if (tapTimer) { clearTimeout(tapTimer); tapTimer = null; }
+            return;
+        }
+    }
+
+    // --- Triple-Tap Detection (only if no significant movement) ---
+    if (!touchMoved || (absDX < 20 && absDY < 20)) {
+        tapCount++;
+
+        if (tapTimer) clearTimeout(tapTimer);
+
+        if (tapCount >= 3) {
+            // Triple tap! → EMI
+            triggerEMICelebration();
+            tapCount = 0;
+            tapTimer = null;
+        } else {
+            // Wait for more taps
+            tapTimer = setTimeout(() => {
+                tapCount = 0;
+                tapTimer = null;
+            }, TAP_WINDOW);
+        }
+    } else {
+        // Movement was too much for a tap, reset
+        tapCount = 0;
+        if (tapTimer) { clearTimeout(tapTimer); tapTimer = null; }
+    }
 }, { passive: false });
 
 // --- Pixel Art Background System ---
