@@ -37,10 +37,148 @@ function resizeCanvas() {
 window.addEventListener('resize', resizeCanvas);
 
 // --- Audio System ---
+let bgMusicPlaying = false;
+
 function initAudio() {
     if (!audioCtx) {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     }
+    // Start background music on first interaction
+    if (!bgMusicPlaying) {
+        bgMusicPlaying = true;
+        startBackgroundMusic();
+    }
+}
+
+// --- 16-bit Chiptune Background Music ---
+function startBackgroundMusic() {
+    if (!audioCtx) return;
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+
+    // Master volume for BG music (keep low so it doesn't overpower SFX)
+    const masterGain = audioCtx.createGain();
+    masterGain.gain.value = 0.06;
+    masterGain.connect(audioCtx.destination);
+
+    // Note frequencies (C major / happy key)
+    const NOTE = {
+        C3: 130.81, D3: 146.83, E3: 164.81, F3: 174.61, G3: 196.00, A3: 220.00, B3: 246.94,
+        C4: 261.63, D4: 293.66, E4: 329.63, F4: 349.23, G4: 392.00, A4: 440.00, B4: 493.88,
+        C5: 523.25, D5: 587.33, E5: 659.25, G5: 783.99,
+        REST: 0
+    };
+
+    // Melody line — cheerful, playful (16 beats per loop, ~8 seconds)
+    const melody = [
+        NOTE.E4, NOTE.G4, NOTE.A4, NOTE.G4,
+        NOTE.E4, NOTE.C4, NOTE.D4, NOTE.E4,
+        NOTE.G4, NOTE.A4, NOTE.B4, NOTE.A4,
+        NOTE.G4, NOTE.E4, NOTE.D4, NOTE.C4,
+
+        NOTE.C4, NOTE.E4, NOTE.G4, NOTE.C5,
+        NOTE.B4, NOTE.A4, NOTE.G4, NOTE.E4,
+        NOTE.F4, NOTE.A4, NOTE.G4, NOTE.E4,
+        NOTE.D4, NOTE.E4, NOTE.C4, NOTE.REST,
+    ];
+
+    // Harmony — softer, higher accompany
+    const harmony = [
+        NOTE.C5, NOTE.REST, NOTE.E5, NOTE.REST,
+        NOTE.C5, NOTE.REST, NOTE.G4, NOTE.REST,
+        NOTE.E5, NOTE.REST, NOTE.D5, NOTE.REST,
+        NOTE.C5, NOTE.REST, NOTE.G4, NOTE.REST,
+
+        NOTE.E5, NOTE.REST, NOTE.G5, NOTE.REST,
+        NOTE.D5, NOTE.REST, NOTE.C5, NOTE.REST,
+        NOTE.A4, NOTE.REST, NOTE.C5, NOTE.REST,
+        NOTE.G4, NOTE.REST, NOTE.E4, NOTE.REST,
+    ];
+
+    // Bass line — grounding
+    const bass = [
+        NOTE.C3, NOTE.C3, NOTE.C3, NOTE.C3,
+        NOTE.A3, NOTE.A3, NOTE.A3, NOTE.A3,
+        NOTE.F3, NOTE.F3, NOTE.F3, NOTE.F3,
+        NOTE.G3, NOTE.G3, NOTE.G3, NOTE.G3,
+
+        NOTE.C3, NOTE.C3, NOTE.E3, NOTE.E3,
+        NOTE.F3, NOTE.F3, NOTE.G3, NOTE.G3,
+        NOTE.F3, NOTE.F3, NOTE.E3, NOTE.E3,
+        NOTE.G3, NOTE.G3, NOTE.C3, NOTE.C3,
+    ];
+
+    const bpm = 140;
+    const beatDuration = 60 / bpm; // ~0.43s per beat
+    const loopDuration = melody.length * beatDuration;
+
+    function scheduleLoop(startTime) {
+        // Melody — square wave (classic chiptune lead)
+        melody.forEach((freq, i) => {
+            if (freq === 0) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(masterGain);
+            osc.type = 'square';
+            osc.frequency.value = freq;
+
+            const t = startTime + i * beatDuration;
+            const dur = beatDuration * 0.8;
+            gain.gain.setValueAtTime(0.4, t);
+            gain.gain.setValueAtTime(0.35, t + dur * 0.5);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+            osc.start(t);
+            osc.stop(t + dur);
+        });
+
+        // Harmony — triangle wave (softer)
+        harmony.forEach((freq, i) => {
+            if (freq === 0) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(masterGain);
+            osc.type = 'triangle';
+            osc.frequency.value = freq;
+
+            const t = startTime + i * beatDuration;
+            const dur = beatDuration * 0.6;
+            gain.gain.setValueAtTime(0.2, t);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+            osc.start(t);
+            osc.stop(t + dur);
+        });
+
+        // Bass — triangle wave (deep)
+        bass.forEach((freq, i) => {
+            if (freq === 0) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(masterGain);
+            osc.type = 'triangle';
+            osc.frequency.value = freq;
+
+            const t = startTime + i * beatDuration;
+            const dur = beatDuration * 0.9;
+            gain.gain.setValueAtTime(0.5, t);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+            osc.start(t);
+            osc.stop(t + dur);
+        });
+
+        // Schedule next loop ~1 beat before this one ends (seamless)
+        const nextLoopTime = startTime + loopDuration;
+        const scheduleAhead = Math.max(0, (nextLoopTime - audioCtx.currentTime - 1) * 1000);
+        setTimeout(() => {
+            if (bgMusicPlaying) {
+                scheduleLoop(nextLoopTime);
+            }
+        }, scheduleAhead);
+    }
+
+    // Start the first loop
+    scheduleLoop(audioCtx.currentTime + 0.1);
 }
 
 function playSound(type, letter) {
