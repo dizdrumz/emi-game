@@ -1,0 +1,28 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background-color: #000;
+    overflow: hidden;
+    /* Prevent scrollbars */
+    width: 100vw;
+    height: 100vh;
+    touch-action: none;
+    /* Prevent all browser touch gestures */
+    -webkit-touch-callout: none;
+    /* Prevent iOS callout menu */
+    -webkit-user-select: none;
+    /* Prevent text selection */
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    /* Remove tap highlight */
+}
+
+canvas {
+    display: block;
+    /* Remove default inline-block spacing */
+    touch-action: none;
+}
